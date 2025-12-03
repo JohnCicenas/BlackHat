@@ -52,9 +52,9 @@ int main(int argc, char const *argv[])
 {
 
     //credits top left 9, 212 bottom 9, 230 77,212 77,230
-    //play button 211 - 238 y 128 - 193 x
+    //play button 205 - 237 y 117 - 201 x
     //help 254 - 294 x 212 - 230 y
-    //stats 275 - 306 x 5 - 18 y
+    //stats 259 - 311 x 8 - 26 y
     while(1){
         float x, y;
         FEHImage homescreen, returnsample;
@@ -67,13 +67,13 @@ int main(int argc, char const *argv[])
         {
             //credits
             returnsample.Draw(0,0);
-        }else if ((128 < x) && (x < 193) && (211 < y) && (y < 238)){
+        }else if ((205 < x) && (x < 294) && (205 < y) && (y < 237)){
             //play
             returnsample.Draw(0,0);
         }else if ((254 < x) && (x < 294) && (212 < y) && (y < 230)){
             //help
             returnsample.Draw(0,0);
-        }else if ((275 < x) && (x < 306) && (5 < y) && (y < 18)){
+        }else if ((259 < x) && (x < 311) && (8 < y) && (y < 26)){
             //stats
             returnsample.Draw(0,0);
         }
@@ -226,4 +226,3 @@ float player::getHashpower(){
 int* player::getHardware(){
     return hardware;
 }
-// hi
