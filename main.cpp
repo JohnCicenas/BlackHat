@@ -226,4 +226,3 @@ float player::getHashpower(){
 int* player::getHardware(){
     return hardware;
 }
-// hi
