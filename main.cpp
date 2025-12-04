@@ -11,9 +11,11 @@
 #include <iostream>
 #include <FEHImages.h>
 #include <cmath>
+#include <thread>
+#include <windows.h>
 using namespace std;
 
-
+//class declarations
 class target{
     private:
     //init variables for money, pwd, and bitstrength
@@ -41,12 +43,17 @@ class player{
     int getMoney();
     float getHashpower();
     int* getHardware();
+    void saveDataToMemory();
 };
+
 //function declarations
 string generatePass();
 int generateRandInt();
 float getBitsEntropy(string password);
 float generateRandFloat();
+float computeTime(float bitStrength, float hashpower);
+void createThread(float timeTillComp);
+DWORD WINAPI clockThread(LPVOID lpparam);
 //main
 int main(int argc, char const *argv[])
 {
@@ -194,6 +201,29 @@ float getBitsEntropy(string password){
     //compute bits
     return length * log2(possibleChars);
 }
+/*
+compute time to crack based on hashrate - formula found from 
+https://auth0.com/blog/defending-against-password-cracking-understanding-the-math/
+via formula T = S/(A*6.308*10^7) where t is time to crack in years, s is sample space, 
+and a is hashes/s
+*/
+float computeTime(float bitStrength, float hashpower){
+    long sampleSize = pow(2, bitStrength);
+    return sampleSize/(hashpower *6.308*pow(10, 7));
+
+}
+//implementing multithreading to keep clock running in back always
+void createThread(float timeTillComp){
+    HANDLE thread = CreateThread(nullptr, 0, clockThread, nullptr, 0, nullptr);
+}
+DWORD WINAPI clockThread(LPVOID lpparam){
+
+}
+/*
+    Target class and functions
+
+
+*/
 target::target(){
     //construct each target objects random values
     string temp = generatePassword();
@@ -212,9 +242,33 @@ float target::getBitStrength(){
 float target::getMoney(){
     return money;
 }
+/*
+    Player class and functions
+
+*/
 //player constructor function
 player::player(){
-    
+    //open file to see if there is a previous save to take from
+    ifstream playersavefile;
+    playersavefile.open("BlackHatPlayerSaveFile.txt");
+    if(playersavefile.is_open()){
+        playersavefile >> money;
+        playersavefile >> hashpower;
+        for (int i = 0; i < 5; i++)
+        {
+            playersavefile >> hardware[i];
+        }
+        
+    //else create starting stats
+    }else{
+        money = 0;
+        hashpower = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            hardware[i] = 0;
+        }
+        
+    }
 }
 //getter functions for player class 
 int player::getMoney(){
@@ -225,4 +279,16 @@ float player::getHashpower(){
 }
 int* player::getHardware(){
     return hardware;
+}
+//function to save player data to long-term memory
+void player::saveDataToMemory(){
+    ofstream saveFile;
+    saveFile.open("BlackHatPlayerSaveFile.txt");
+    saveFile << money;
+    saveFile << hashpower;
+    for (int i = 0; i < 5; i++)
+    {
+        saveFile << hardware[i];
+    }
+    saveFile.close();
 }
