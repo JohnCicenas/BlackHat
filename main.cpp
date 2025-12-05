@@ -13,20 +13,31 @@
 #include <cmath>
 #include <thread>
 #include <windows.h>
+#include <atomic>
+#include <random>
+#include <chrono>
 using namespace std;
+//create global stop flag to close thread whenever user presses next and target hackedflag to tell when target is hacked
+atomic<bool> stopFlag(false);
+atomic<bool> targethacked(false);
+
+// global random number generator seeding engine - based off time for random seeding persisting through program
+mt19937 randengine(static_cast<unsigned long>(
+    chrono::high_resolution_clock::now().time_since_epoch().count()
+));
 
 //class declarations
 class target{
     private:
     //init variables for money, pwd, and bitstrength
-    int money;
+    double money;
     string pwd;
     float bitStrength;
     
     public:
     //set up basic functions to get private values along with constructor
     target();
-    float getMoney();
+    double getMoney();
     string getPass();
     float getBitStrength();  
 
@@ -34,26 +45,36 @@ class target{
 class player{
     private:
     //init variables for money, hashpower, and hardware
-    int money;
-    float hashpower;
+    int targetsHacked;
+    double money;
+    double hashpower;
+    /* h1 7000-8000
+    h2 3.2m 
+    h3 580 m
+    h4 90 b m
+    h5 1 t
+    */
     int hardware[5];
     public:
     //set up basic functions to get private values along with constructor
     player();
-    int getMoney();
+    double getMoney();
+    int getTargetsHacked();
     float getHashpower();
     int* getHardware();
     void saveDataToMemory();
 };
 
 //function declarations
-string generatePass();
-int generateRandInt();
+string generatePassword();
+int generateRandInt(int min, int max);
 float getBitsEntropy(string password);
-float generateRandFloat();
-float computeTime(float bitStrength, float hashpower);
+float generateRandFloat(float min, float max);
+float computeTime(float bitStrength, double hashpower);
+void updateProgressBar(float progress);
 void createThread(float timeTillComp);
 DWORD WINAPI clockThread(LPVOID lpparam);
+
 //main
 int main(int argc, char const *argv[])
 {
@@ -62,12 +83,14 @@ int main(int argc, char const *argv[])
     //play button 205 - 237 y 117 - 201 x
     //help 254 - 294 x 212 - 230 y
     //stats 259 - 311 x 8 - 26 y
+    
     while(1){
         float x, y;
         FEHImage homescreen, returnsample;
         homescreen.Open("homescreen.png");
         returnsample.Open("returnsample.png");
         homescreen.Draw(0,0);
+        createThread(1.0);
         while(!LCD.Touch(&x, &y)){}
         while (LCD.Touch(&x, &y)){}
         if ((9 < x) && (x < 77) && (212 < y) && (y < 230))
@@ -94,92 +117,64 @@ int main(int argc, char const *argv[])
 
 //function to generate a random int given a range of ints
 int generateRandInt(int min, int max){
-    std::random_device randseed;
-    std::mt19937 randengine(randseed());
-    std::uniform_int_distribution<int> distribution(min, max);
+    uniform_int_distribution<int> distribution(min, max);
     int randomNum = distribution(randengine);
     return randomNum;
 
 }
 //function to generate a random float given a range of floats
 float generateRandFloat(float min, float max){
-    std::random_device randseed;
-    std::mt19937 randengine(randseed());
-    std::uniform_int_distribution<float> distribution(min, max);
-    int randomNum = distribution(randengine);
+    uniform_real_distribution<float> distribution(min, max);
+    float randomNum = distribution(randengine);
     return randomNum;
 
 }
-string generatePassword(){
-    //randomized password - bit strength will be based off of it
-    /*  first randomize type str
-    1 - common word
-    2 - random lowercase letters
-    3 - letters & nums
-    4 - uppercase & nums
-    5 - uppcase nums & symbols
-    randomize length - 4 or longer for 2-5
-    */
-   string pass, charArr = "abcdefghijklmnopqrstuvwxyz";
-   int randCase = generateRandInt(1, 5);
-   int pwdLength = generateRandInt(4, 20);
-   ifstream ifFile;
-   switch (randCase)
-   {
-    case 1:
-        //case 1 - common word from database
-        ifFile.open("commonwords.txt");
-        int tempindex = generateRandInt(1,9999);
-        for (int i = 0; i < tempindex; i++)
-        {
-            getline(ifFile, pass);
+string generatePassword() {
+    string pass;
+    string charArr = "abcdefghijklmnopqrstuvwxyz";
+    int randCase = generateRandInt(1, 5);
+    int pwdLength = generateRandInt(4, 20);
+    cout << randCase << endl;
+    cout << pwdLength << endl;
+    switch (randCase) {
+        case 1: { // common word
+            vector<string> words;
+            ifstream file("commonwords.txt");
+            string line;
+            while(getline(file, line)) words.push_back(line);
+            file.close();
+            if(words.empty()) return "default"; // fallback
+            pass = words[ generateRandInt(0, words.size()-1) ];
+            return pass;
         }
-        ifFile.close();
-        return pass;
-        break;
-    case 2:
-        //case 2 - just lowercase
-        pass.reserve(pwdLength);
-        for (int i = 0; i < pwdLength; i++)
-        {
-            pass += charArr[generateRandInt(0, charArr.size())];
+        case 2: { // lowercase only
+            for(int i=0;i<pwdLength;i++)
+                pass += charArr[generateRandInt(0,charArr.size()-1)];
+            return pass;
         }
-        return pass;
-        break;
-    case 3:
-        //case 3 - lowercase and ints
-        charArr += "1234567890";
-        pass.reserve(pwdLength);
-        for (int i = 0; i < pwdLength; i++)
-        {
-            pass += charArr[generateRandInt(0, charArr.size())];
+        case 3: { // lowercase + digits
+            charArr += "0123456789";
+            for(int i=0;i<pwdLength;i++)
+                pass += charArr[generateRandInt(0,charArr.size()-1)];
+            return pass;
         }
-        return pass;
-        break;
-    case 4:
-        //case 4 - lowercase, uppercase, and ints
-        charArr += "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        pass.reserve(pwdLength);
-        for (int i = 0; i < pwdLength; i++)
-        {
-            pass += charArr[generateRandInt(0, charArr.size())];
+        case 4: { // lowercase + uppercase + digits
+            charArr += "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            for(int i=0;i<pwdLength;i++)
+                pass += charArr[generateRandInt(0,charArr.size()-1)];
+            return pass;
         }
-        return pass;
-        break;
-    case 5:
-        //lowercase, uppercase, and ints
-        charArr += "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*";
-        pass.reserve(pwdLength);
-        for (int i = 0; i < pwdLength; i++)
-        {
-            pass += charArr[generateRandInt(0, charArr.size())];
+        case 5: { // lowercase + uppercase + digits + symbols
+            charArr += "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*";
+            for(int i=0;i<pwdLength;i++)
+                pass += charArr[generateRandInt(0,charArr.size()-1)];
+            return pass;
         }
-        return pass;
-        break;
-    default:
-        break;
-   }
+        default:
+            return "default";
+    }
 }
+
 /*function to get bit strength (will be able to calculate time based off this)
     formula for measuring bits of entropy - E = L * log(base2)R
     source and more information: https://proton.me/blog/what-is-password-entropy
@@ -207,18 +202,50 @@ https://auth0.com/blog/defending-against-password-cracking-understanding-the-mat
 via formula T = S/(A*6.308*10^7) where t is time to crack in years, s is sample space, 
 and a is hashes/s
 */
-float computeTime(float bitStrength, float hashpower){
-    long sampleSize = pow(2, bitStrength);
-    return sampleSize/(hashpower *6.308*pow(10, 7));
-
+float computeTime(float bitStrength, double hashpower){
+    double logTime = bitStrength * log10(2) - log10(hashpower) - log10(6.308 * pow(10.0, 7));
+    float time = pow(10.0, logTime);
+    return time;
 }
-//implementing multithreading to keep clock running in back always
-void createThread(float timeTillComp){
-    HANDLE thread = CreateThread(nullptr, 0, clockThread, nullptr, 0, nullptr);
+//function to update the progress bar based on time left
+void updateProgressBar(float progress){
+    int totalWidth = 205;
+    int progresspixel = static_cast<int>(round(totalWidth * progress));
+    LCD.SetFontColor(GREEN);
+    LCD.FillRectangle(103, 22, progresspixel, 6);
+    LCD.Update();
 }
+//function running on thread
 DWORD WINAPI clockThread(LPVOID lpparam){
-
+//getting time value in yrs from ptr then deleting dynamic allocation
+    float *p = static_cast<float*>(lpparam);
+    float timeToCrack = *p;
+    delete p;
+    // in this game 1 real life year = 60 seconds hacking time
+    float progress;
+    timeToCrack = timeToCrack * 60.0;
+    time_t timeStart = time(NULL);
+    while((time(NULL) - timeStart) < timeToCrack){
+        progress = (time(NULL) - timeStart)/timeToCrack;
+        updateProgressBar(progress);
+        if(stopFlag){
+            //code to make bar go back to start
+            LCD.SetFontColor(GRAY);
+            LCD.FillRectangle(103, 22, 205, 6);
+            LCD.Update();
+            return 0;
+        }
+    }
+    targethacked = true;
+    return 0;
 }
+//function that creates thread - passing in ptr timeToCrack which is dynamically allocated
+void createThread(float time){
+    float *timeToCrack = new float(time);
+    HANDLE thread = CreateThread(nullptr, 0, clockThread, timeToCrack, 0, nullptr);
+    
+}
+//next person
 /*
     Target class and functions
 
@@ -239,7 +266,7 @@ string target::getPass(){
 float target::getBitStrength(){
     return bitStrength;
 }
-float target::getMoney(){
+double target::getMoney(){
     return money;
 }
 /*
@@ -252,6 +279,7 @@ player::player(){
     ifstream playersavefile;
     playersavefile.open("BlackHatPlayerSaveFile.txt");
     if(playersavefile.is_open()){
+        playersavefile >> targetsHacked;
         playersavefile >> money;
         playersavefile >> hashpower;
         for (int i = 0; i < 5; i++)
@@ -263,6 +291,7 @@ player::player(){
     }else{
         money = 0;
         hashpower = 0;
+        targetsHacked = 0;
         for (int i = 0; i < 5; i++)
         {
             hardware[i] = 0;
@@ -271,11 +300,14 @@ player::player(){
     }
 }
 //getter functions for player class 
-int player::getMoney(){
+double player::getMoney(){
     return money;
 }
 float player::getHashpower(){
     return hashpower;
+}
+int player::getTargetsHacked(){
+    return targetsHacked;
 }
 int* player::getHardware(){
     return hardware;
@@ -284,11 +316,12 @@ int* player::getHardware(){
 void player::saveDataToMemory(){
     ofstream saveFile;
     saveFile.open("BlackHatPlayerSaveFile.txt");
-    saveFile << money;
-    saveFile << hashpower;
+    saveFile << targetsHacked << "\n";
+    saveFile << money << "\n";
+    saveFile << hashpower << "\n";
     for (int i = 0; i < 5; i++)
     {
-        saveFile << hardware[i];
+        saveFile << hardware[i] << "\n";
     }
     saveFile.close();
 }
